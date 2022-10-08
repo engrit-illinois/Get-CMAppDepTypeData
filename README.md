@@ -9,6 +9,10 @@ While Compare-AssignmentRevisions looks primarily at locally-cached assignment d
 
 Gathering both types of data in a single script turned out to be more trouble than it was worth, so I've moved this application data-gathering functionality here.  
 
+# Requirements
+- Requires PowerShell 7
+- 
+
 # Usage
 WIP
 
