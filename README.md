@@ -45,18 +45,30 @@ This script is primarily to determine if there are some endpoints which _all_ ha
 # Parameters
 
 ### -Computer \<string[]\>
-WIP
+Required string array, when `-Collection` is not specified.  
+An array of strings representing AD computer object names, or wildcard queries for AD computer object names.  
+e.g.:  
+  - `-Computer "comp-name-01"`
+  - `-Computer "comp-name-01","comp-name-02"`
+  - `-Computer "comp-name-*"`
+  - `-Computer "comp-name-*","comp-name2-*"`
+  - `-Computer "comp-name-01","comp-name2-*"`
+Only computer names which are found as objects in AD (under the given `-SearchBase`) will be considered and acted upon.  
 
 ### -SearchBase \<string\>
-WIP
+Optional string.  
+The Distinguished Name (OUDN) of the Organizational Unit (OU) under which to search for AD computers.  
+Default is `"OU=Engineering,OU=Urbana,DC=ad,DC=uillinois,DC=edu"`.  
 
 ### -Collection \<string\>
-WIP
+Required string, when `-Computer` is not specified.  
+A string representing the name of a MECM collection.  
+Only computer names which are found as members of the given collection will be considered and acted upon.  
 
 ### -Csv \<string\>
 Optional string.  
 The full path of a CSV file to output resulting data to.  
-If omitted, no CSV will be created.  
+If omitted, no CSV will be created (which more or less defeats the purpose of running this script).  
 If `:TS:` is given as part of the string, it will be replaced by a timestamp of when the script was started, with a format specified by `-LogFileTimestampFormat`.  
 Specify `:ENGRIT:` to use a default path (i.e. `c:\engrit\logs\<Module-Name>_<timestamp>.csv`).  
 
@@ -68,7 +80,9 @@ If `:TS:` is given as part of the string, it will be replaced by a timestamp of 
 Specify `:ENGRIT:` to use a default path (i.e. `c:\engrit\logs\<Module-Name>_<timestamp>.log`).  
 
 ### -ThrottleLimit \<int\>
-Optional integer
+Optional integer.  
+The maximum number of endpoints to poll simultaneously.  
+Default is `50`.  
 
 ### -SiteCode \<string\>
 Optional string, representing the Site Code ID for your SCCM site.  
