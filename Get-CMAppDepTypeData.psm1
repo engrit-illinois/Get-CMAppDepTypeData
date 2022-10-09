@@ -15,7 +15,7 @@ function Get-CMAppDepTypeData {
 		# ":ENGRIT:" will be replaced with "c:\engrit\logs\$($MODULE_NAME)_:TS:.csv"
 		# ":TS:" will be replaced with start timestamp
 		[string]$Csv,
-			
+		
 		# ":ENGRIT:" will be replaced with "c:\engrit\logs\$($MODULE_NAME)_:TS:.log"
 		# ":TS:" will be replaced with start timestamp
 		[string]$Log,
@@ -36,7 +36,7 @@ function Get-CMAppDepTypeData {
 		
 		[int]$Verbosity = 0
 	)
-
+	
 	# Logic to determine final log filename
 	$MODULE_NAME = "Get-CMAppDepTypeData"
 	$ENGRIT_LOG_DIR = "c:\engrit\logs"
@@ -51,13 +51,7 @@ function Get-CMAppDepTypeData {
 		$Csv = $Csv.Replace(":ENGRIT:","$($ENGRIT_LOG_DIR)\$($ENGRIT_LOG_FILENAME).csv")
 		$Csv = $Csv.Replace(":TS:",$START_TIMESTAMP)
 	}
-
-
-
-	# --------------------------------------------------------
-	# Primary log function
-	# --------------------------------------------------------
-
+	
 	function log {
 		param (
 			[Parameter(Position=0)]
@@ -235,7 +229,7 @@ function Get-CMAppDepTypeData {
 			}
 		}
 		else {
-			log "Somehow neither the -Computers, nor -Collection parameter was specified!" -l 1
+			log "Somehow neither the -Computer, nor -Collection parameter was specified!" -l 1
 		}
 		
 		log "Done getting list of computer names." -v 2
