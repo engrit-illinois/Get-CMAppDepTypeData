@@ -1,5 +1,7 @@
 # THIS SCRIPT IS A WORK IN PROGRESS
 This script is currently incomplete. Do not use until this notice has been removed.  
+<br />
+<br />
 
 # Get-CMAppDepTypeData
 Script to gather local application deployment type data from remote machines to identify widespread issues.  
@@ -9,16 +11,24 @@ This is sort of a companion script to https://github.com/engrit-illinois/Compare
 While Compare-AssignmentRevisions looks primarily at locally-cached assignment data across endpoints, Get-CMAppDepTypeData looks at locally-cached application data across endpoints. Looking at locally-cached assignment data is useful to determine if endpoints are looking for incorrect revisions of a deployment (more details on the Compare-Assignments README). Looking at locally-cached application data (or more specifically, the locally-cached data about those applications' available deployment types) is useful to determine if endpoints are missing this deployment type data, which is another reason that Software Center may display only a subset of the applications deployed to it.  
 
 Gathering both types of data in a single script turned out to be more trouble than it was worth, so I've moved this application data-gathering functionality here.  
+<br />
+<br />
 
 # Requirements
 - Requires PowerShell 7
 - 
+<br />
+<br />
 
 # Usage
 WIP
+<br />
+<br />
 
 # Interpretation
 WIP
+<br />
+<br />
 
 # Remediation
 This script performs no remediation on endpoints. It's sole purpose is to gather data to better inform your actions.  
@@ -29,6 +39,8 @@ This script is primarily to determine if there are some endpoints which _all_ ha
 - Re-distribute the content of the offending deployment
 - Delete and recreate the offending deployment
 - Increment the revision of the deployment's application's deployment type, by making a benign edit (such as to the name string) and saving it. This should trigger all (functioning) clients where this deployment type is deployed to refresh their assignment data.
+<br />
+<br />
 
 # Parameters
 
