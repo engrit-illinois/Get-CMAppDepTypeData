@@ -53,6 +53,7 @@ e.g.:
   - `-Computer "comp-name-*"`
   - `-Computer "comp-name-*","comp-name2-*"`
   - `-Computer "comp-name-01","comp-name2-*"`
+
 Only computer names which are found as objects in AD (under the given `-SearchBase`) will be considered and acted upon.  
 
 ### -SearchBase \<string\>
