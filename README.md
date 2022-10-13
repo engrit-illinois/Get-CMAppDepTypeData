@@ -3,7 +3,7 @@ This script is currently incomplete. Do not use until this notice has been remov
 <br />
 <br />
 
-# Get-CMAppDepTypeData
+# Summary
 Script to gather local application deployment type data from remote machines to identify widespread issues.  
 
 This is sort of a companion script to https://github.com/engrit-illinois/Compare-AssignmentRevisions.  
