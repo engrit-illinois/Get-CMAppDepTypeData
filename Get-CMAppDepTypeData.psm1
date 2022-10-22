@@ -22,6 +22,8 @@ function Get-CMAppDepTypeData {
 		
 		[int]$ThrottleLimit = 50,
 		
+		[int]$CimTimeoutSec = 60,
+		
 		[string]$SiteCode="MP0",
 		[string]$Provider="sccmcas.ad.uillinois.edu",
 		[string]$CMPSModulePath="$($ENV:SMS_ADMIN_UI_PATH)\..\ConfigurationManager.psd1",
@@ -169,7 +171,7 @@ function Get-CMAppDepTypeData {
 	}
 	
 	function Prep-MECM {
-		log "Preparing connection to MECM..."
+		log "Preparing connection to MECM..." -l 1
 		$initParams = @{}
 		if((Get-Module ConfigurationManager) -eq $null) {
 			# The ConfigurationManager Powershell module switched filepaths at some point around CB 18##
@@ -180,7 +182,7 @@ function Get-CMAppDepTypeData {
 			New-PSDrive -Name $SiteCode -PSProvider CMSite -Root $Provider @initParams
 		}
 		Set-Location "$($SiteCode):\" @initParams
-		log "Done prepping connection to MECM." -v 2
+		log "Done prepping connection to MECM." -l 1 -v 2
 	}
 	
 	function Get-CompNameList($compNames) {
@@ -207,6 +209,10 @@ function Get-CMAppDepTypeData {
 		}
 		elseif($Collection) {
 			log "-Collection was specified. Getting members of collection: `"$Collection`"..." -l 1 -v 1
+			
+			$myPWD = $pwd.path
+			Prep-MECM
+			
 			$colObj = Get-CMCollection -Name $Collection
 			if(!$colObj) {
 				log "The given collection was not found!" -l 1
@@ -227,6 +233,8 @@ function Get-CMAppDepTypeData {
 					log "Found $($compNames.count) computers in `"$Collection`" collection: $list." -l 1
 				}
 			}
+			
+			Set-Location $myPWD
 		}
 		else {
 			log "Somehow neither the -Computer, nor -Collection parameter was specified!" -l 1
@@ -253,6 +261,7 @@ function Get-CMAppDepTypeData {
 				"Name" = $compName
 				"Responded" = $null
 				"Error" = $null
+				"ErrorReasons" = @()
 				"MecmClientVer" = $null
 				"PsVer" = $null
 				"OsVer" = $null
@@ -273,70 +282,124 @@ function Get-CMAppDepTypeData {
 		log "Getting data for all computers..."
 		
 		# https://tighetec.co.uk/2022/06/01/passing-functions-to-foreach-parallel-loop/
-		$addm = ${function:addm}.ToString()
+		$f_addm = ${function:addm}.ToString()
+		$f_count = ${function:count}.ToString()
 		
-		$comps | ForEach-Object -ThrottleLimit $ThrottleLimit -Parallel {
-			$addm = $using:addm
-			
+		$comps = $comps | ForEach-Object -ThrottleLimit $ThrottleLimit -Parallel {
+			$f_addm = $using:f_addm
+			$f_count = $using:f_count
 			$comp = $_
-			$compName = $comp.name
-			#log "[$compName] Getting data..." -l 1
-			$num += 1
 			
-			#log "[$compName] Testing connection (via ping)..." -l 2
-			if(Test-Connection $compName -Quiet -Count 1) {
-				#log "[$compName] Responded." -l 3
-				$comp.Responded = $true
+			if(-not (Test-Connection $comp.Name -Quiet -Count 1)) {
+				$comp.Responded = $false
 			}
 			else {
-				#log "[$compName] Did not respond!" -l 3
-				$comp.Responded = $false
-				$comp.Skip = $true
-			}
-			
-			if(-not $comp.Skip) {
+				$comp.Responded = $true
 				
-				# TODO: refactor this into a single scriptblock to send to the machine
-				
-				<#
-				$comp = Get-Data "MecmClientVer" $comp
-				$comp = Get-Data "PsVer" $comp
-				$comp = Get-Data "OsVer" $comp
-				$comp = Get-Data "Make" $comp
-				$comp = Get-Data "Model" $comp
-				$comp = Get-Data "Apps" $comp
-				$comp = Get-Data "AppDTs" $comp
-				#>
-				
-				$comp.Apps = @(
-					[PSCustomObject]@{
-						Id = "Test ID 1"
-						Name = "Test Name 1"
-					},
-					[PSCustomObject]@{
-						Id = "Test ID 2"
-						Name = "Test Name 2"
-					},
-					[PSCustomObject]@{
-						Id = "Test ID 3"
-						Name = "Test Name 3"
+				$scriptBlock = {
+					param(
+						[int]$CimTimeoutSec,
+						[bool]$Responded,
+						[string]$f_addm,
+						[string]$f_count
+					)
+					
+					$err = $false
+					$errReasons = @()
+					
+					try {
+						$mecmClientVer = Get-CIMInstance -Namespace "root\ccm" -Class "SMS_Client" -ErrorAction "Stop" -OperationTimeoutSec $CimTimeoutSec | Select -ExpandProperty "ClientVersion"
 					}
-				)
-				
-				$comp.Apps | ForEach-Object -Parallel {
-					${function:addm} = $using:addm
-					$comp = $using:comp
+					catch {
+						$err = $true
+						$errReasons += @("Failed to get MECM client version!")
+					}
 					
-					$app = $_
+					try {
+						$psVer = $PSVersionTable.PSVersion.ToString()
+					}
+					catch {
+						$err = $true
+						$errReasons += @("Failed to get PowerShell version!")
+					}
 					
-					$app = addm "Computer" $comp.Name $app
-					$app = addm "Responded" $comp.Responded $app
-					$app = addm "MecmClientVer" $comp.MecmClientVer $app
-					$app = addm "PsVer" $comp.PsVer $app
-					$app = addm "OsVer" $comp.OsVer $app
-					$app = addm "Make" $comp.Make $app
-					$app = addm "Model" $comp.Model $app
+					try {
+						$osVer = Get-CIMInstance -Class "Win32_OperatingSystem" -ErrorAction "Stop" -OperationTimeoutSec $CimTimeoutSec | Select -ExpandProperty "Version"
+					}
+					catch {
+						$err = $true
+						$errReasons += @("Failed to get OS version!")
+					}
+					
+					try {
+						$makeModel = Get-CIMInstance -Class "Win32_ComputerSystem" -ErrorAction "Stop" -OperationTimeoutSec $CimTimeoutSec
+						$make = $makeModel | Select -ExpandProperty "Manufacturer"
+						$model = $makeModel | Select -ExpandProperty "Model"
+					}
+					catch {
+						$err = $true
+						$errReasons += @("Failed to get make/model!")
+					}
+					
+					try {
+						$apps = Get-CIMInstance -Namespace "root\ccm\clientsdk" -Class "CCM_Application" -ErrorAction "Stop" -OperationTimeoutSec $CimTimeoutSec | Select * -ExcludeProperty "Icon"
+					}
+					catch {
+						$err = $true
+						$errReasons += @("Failed to get application data!")
+					}
+					
+					$apps | ForEach-Object {
+						${function:addm} = $using:f_addm
+						${function:count} = $using:f_count
+						$app = $_
+						
+						# For some dumb reason, Get-CIMInstance doesn't return the __PATH property like Get-WMIObject does, so reconstruct it
+						# https://jdhitsolutions.com/blog/powershell/8541/getting-ciminstance-by-path/
+						# https://jdhitsolutions.com/blog/wmi/3105/adding-system-path-to-ciminstance-objects/
+						$serverName = $app.CimSystemProperties.ServerName
+						$cimClass = $app.CimClass.ToString() -replace "/","\"
+						$modelName = $app.Id.ToString()
+						$machineTarget = $app.IsMachineTarget.ToString().ToLower()
+						$revision = $app.Revision.ToString()
+						$path = "\\$($serverName)\$($cimClass).Id=`"$($modelName)`",IsMachineTarget=$($machineTarget),Revision=`"$($revision)`""
+						$app = addm "Path" $path $app
+						
+						# Get AppDTs for each app
+						try {
+							$appDTs = [wmi]$path | Select -ExpandProperty "AppDTs"
+							
+							$appDTCount = count $appDTs
+							$app = addm "AppDTCount" $appDTCount $app
+							
+							if($appDTCount -gt 0) {
+								$appDTNames = $appDTs | Select -ExpandProperty "Name"
+								$appDTNamesString = $appDTNames -join "`",`""
+								$appDTNamesString = "`"$($appDTNamesString)`""
+								$app = addm "AppDTNames" $appDTNamesString $app
+							}
+						}
+						catch {
+							$err = $true
+							$errReasons += @("Failed to get application deployment type data!")
+						}
+						
+						# Add misc. info to each app
+						$app = addm "Computer" $serverName $app
+						$app = addm "Responded" $Responded $app
+						$app = addm "Error" $err $app
+						$app = addm "ErrorReasons" $errReasons -join " " $app
+						$app = addm "MecmClientVer" $mecmClientVer $app
+						$app = addm "PsVer" $psVer $app
+						$app = addm "OsVer" $osVer $app
+						$app = addm "Make" $make $app
+						$app = addm "Model" $model $app
+						
+						$app
+					}
 				}
+				
+				$comp.Apps = Invoke-Command -ComputerName $comp.Name -ArgumentList $CimTimeoutSec,$comp.Responded,$f_addm,$f_count -ScriptBlock $scriptBlock
 			}
 			
 			#log "[$compName] Done getting data." -l 1
@@ -364,7 +427,7 @@ function Get-CMAppDepTypeData {
 			if(-not (Test-Path -PathType "Leaf" -Path $Csv)) {
 				$shutup = New-Item -ItemType File -Force -Path $Csv
 			}
-			$apps | Select Computer,MecmClientVer,PsVer,OsVer,Make,Model,Id,Name | Export-Csv -NoTypeInformation -Path $Csv
+			$apps | Sort Computer,Name | Select Computer,Error,ErrorReasons,MecmClientVer,PsVer,OsVer,Make,Model,@{Name="AppName";Expression={$_.Name}},AppDTNames,AppDTCount | Export-Csv -NoTypeInformation -Path $Csv
 		}
 		else {
 			log "No path was specified for -Csv! Skipping export." -l 1
@@ -373,8 +436,6 @@ function Get-CMAppDepTypeData {
 	
 	function Do-Stuff {
 		$startTime = Get-Date
-		$myPWD = $pwd.path
-		Prep-MECM
 		
 		$compNames = Get-CompNames
 		if($compNames) {
@@ -383,7 +444,6 @@ function Get-CMAppDepTypeData {
 			Export-Apps $comps
 		}
 		
-		Set-Location $myPWD
 		$runTime = Get-RunTime $startTime
 		log "Runtime: $runTime"
 	}

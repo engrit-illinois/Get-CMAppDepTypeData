@@ -1,8 +1,3 @@
-# THIS SCRIPT IS A WORK IN PROGRESS
-This script is currently incomplete. Do not use until this notice has been removed.  
-<br />
-<br />
-
 # Summary
 Script to gather local application deployment type data from remote machines to identify widespread issues.  
 
@@ -16,7 +11,6 @@ Gathering both types of data in a single script turned out to be more trouble th
 
 # Requirements
 - Requires PowerShell 7
-- 
 <br />
 <br />
 
