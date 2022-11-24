@@ -24,7 +24,8 @@ The problem with "application" data arises when the entries do not have any data
 
 Note: Since `Get-WMIObject` only works on PowerShell 5.1, this script has to do some real annoying workarounds to accomplish the same thing in PowerShell 7, because for some reason `Get-CIMInstance` doesn't include the `__PATH` property natively. See:  
     - https://jdhitsolutions.com/blog/powershell/8541/getting-ciminstance-by-path/
-		- https://jdhitsolutions.com/blog/wmi/3105/adding-system-path-to-ciminstance-objects/
+    - https://jdhitsolutions.com/blog/wmi/3105/adding-system-path-to-ciminstance-objects/
+
 <br />
 <br />
 
