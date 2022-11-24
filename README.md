@@ -3,9 +3,9 @@ Script to gather local application deployment type data from remote machines to 
 
 This is sort of a companion script to https://github.com/engrit-illinois/Compare-AssignmentRevisions.  
 
-While Compare-AssignmentRevisions looks primarily at locally-cached assignment data across endpoints, Get-CMAppDepTypeData looks at locally-cached application data across endpoints. Looking at locally-cached assignment data is useful to determine if endpoints are looking for incorrect revisions of a deployment (more details on the Compare-Assignments README). Looking at locally-cached application data (or more specifically, the locally-cached data about those applications' available deployment types) is useful to determine if endpoints are missing this deployment type data, which seems to be another reason that Software Center may display only a subset of the applications deployed to it. As noted in the `Compare-AssignmentRevisions` README, this can also cause deployment reporting to be incomplete. It seems as though when the client runs into one of these problems it stops processing further deployments, causing both issues.  
+While Compare-AssignmentRevisions looks primarily at locally-cached "assignment" data across endpoints, Get-CMAppDepTypeData looks at locally-cached "application" data across endpoints. Looking at locally-cached assignment data is useful to determine if endpoints are looking for incorrect/outdated revisions of a deployment (more details on the Compare-Assignments README). Looking at locally-cached application data (or more specifically, the locally-cached data about those applications' available deployment types) is useful to determine if endpoints are missing this deployment type data, which seems to be another reason that Software Center may display only a subset of the applications deployed to it. As noted in the `Compare-AssignmentRevisions` README, this can also cause deployment reporting to be incomplete. It seems that when the MECM client runs into one of these issues it chokes and stops processing further deployments, causing both issues.  
 
-Gathering both types of data in a single script turned out to be more trouble than it was worth, so I've moved this application data-gathering functionality here.  
+Gathering both types of data in a single script turned out to be more trouble than it was worth, so I've moved this application data-gathering functionality here. This script is much simpler and more efficient (i.e. much faster) than Compare-AssignmentRevisions, mostly because it doesn't need to compare locally-cached data with live data from MECM. So you might want to try this first.  
 <br />
 <br />
 
@@ -28,7 +28,7 @@ Each row in the CSV will list some stats about the computer, the name of the dep
 
 An issue with an individual endpoint will manifest as many rows, representing multiple deployments on the same computer, where the `AppDtCount` is 0. The easiest way to identify this is to sort the data first by the `AppDTCount` column (ascending), and then by the `Computer` column. If you see the same computer listed many times with an `AppDTCount` of `0`, then that client may have issues.  
 
-A widespread issue will manifest as many rows, representing the same deployment across different computers, where the `AppDTCount` is 0. The easiest way to identify this is to sort the data first by the `AppDTCount` column (ascending), and then by the `AppName` column. If you see the same app listed many times across different computers with an `AppDTCount` of `0`, then that appor deployment may have an issue.  
+A widespread issue will manifest as many rows, representing the same deployment across different computers, where the `AppDTCount` is 0. The easiest way to identify this is to sort the data first by the `AppDTCount` column (ascending), and then by the `AppName` column. If you see the same app listed many times across different computers with an `AppDTCount` of `0`, then that app or deployment may have an issue.  
 <br />
 <br />
 
