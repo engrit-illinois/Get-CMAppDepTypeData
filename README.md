@@ -14,7 +14,7 @@ Per the above, "assignment" data (evaluated by Compare-AssignmentRevisions) is l
 
 `Get-CimInstance -Namespace "root\ccm\policy\Machine" -ClassName "CCM_ApplicationCIAssignment" | Select -First 1 | Select -ExpandProperty AssignedCIs`  
 
-The problem with "assignment" data arises when the revisions recorded in that data do not line up with the actual revisions available from MECM, or your DP.  
+The problem with "assignment" data arises when the revisions embedded in that data do not line up with the actual revisions available from MECM, or your DP.  
 
 By contrast, "application" data (evaluated by Get-CMAppDepTypeData) is located at `root\ccm\clientsdk\CCM_Application`. For an example of this:  
 
