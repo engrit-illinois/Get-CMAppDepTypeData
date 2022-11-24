@@ -9,6 +9,15 @@ Gathering both types of data in a single script turned out to be more trouble th
 <br />
 <br />
 
+# Slightly more technical detail
+Per the above, "assignment" data (evaluated by Compare-AssignmentRevisions) is located at `root\ccm\policy\Machine\CCM_ApplicationCIAssignment`. For an example of this:
+`Get-CimInstance -Namespace "root\ccm\policy\Machine" -ClassName "CCM_ApplicationCIAssignment" | Select -First 1 | Select -ExpandProperty AssignedCIs`
+
+By contrast, "application" data (evaluated by Get-CMAppDepTypeData) is located at `root\ccm\clientsdk\CCM_Application`. For an example of this:
+`Get-WmiObject -Namespace "root\ccm\clientsdk" -ClassName "CCM_Application" | Select -ExpandProperty "__PATH" | ForEach-Object { $name = [wmi]$_ | Select -ExpandProperty "AppDTs" | Select "Name"; if($name){ $name } else { "NO APPDT FOUND" } }`
+<br />
+<br />
+
 # Requirements
 - Requires PowerShell 7
 <br />
