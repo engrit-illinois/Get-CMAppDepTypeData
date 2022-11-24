@@ -42,7 +42,8 @@ This script is primarily to determine if there are some endpoints which _all_ ha
 - Delete and recreate the offending deployment
 - Increment the revision of the deployment's application's deployment type, by making a benign edit (such as to the name string) and saving it. This should trigger all (functioning) clients where this deployment type is deployed to refresh their assignment data.
 - Update the content of the deployment type of the offending application (right-click -> Update Content).
-- Prune the supersedence chain of the offending application. Long supersedence chains are known to cause issues.
+- Remove invalid references to deleted applications in the offending application's supersedence chain. See [Get-AppSupersedence](https://github.com/engrit-illinois/Get-AppSupersedence) for an easier way to identify this issue.
+- Prune the supersedence chain of the offending application. Very long supersedence chains are known to cause issues.
 <br />
 <br />
 
