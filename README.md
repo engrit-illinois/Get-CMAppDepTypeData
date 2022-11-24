@@ -14,11 +14,15 @@ Per the above, "assignment" data (evaluated by Compare-AssignmentRevisions) is l
 
 `Get-CimInstance -Namespace "root\ccm\policy\Machine" -ClassName "CCM_ApplicationCIAssignment" | Select -First 1 | Select -ExpandProperty AssignedCIs`  
 
+The problem with "assignment" data arises when the revisions recorded in that data do not line up with the actual revisions available from MECM, or your DP.  
+
 By contrast, "application" data (evaluated by Get-CMAppDepTypeData) is located at `root\ccm\clientsdk\CCM_Application`. For an example of this:  
 
 `Get-WmiObject -Namespace "root\ccm\clientsdk" -ClassName "CCM_Application" | Select -ExpandProperty "__PATH" | ForEach-Object { $name = [wmi]$_ | Select -ExpandProperty "AppDTs" | Select "Name"; if($name){ $name } else { "NO APPDT FOUND" } }`  
 
-Note: Since `Get-WMIObject` only works on PowerShell 5.1, this script has to do some real annoying workarounds to accomplish the same thing in PowerShell 7, because for some reason `Get-CIMInstance` doesn't include the `__PATH` property natively. See:
+The problem with "application" data arises when the entries do not have any data about the app's deployment types, hence the original [technet thread](https://social.technet.microsoft.com/forums/en-US/e0bd29ad-adf5-4c33-a2f2-740df8cc6c32/applications-not-visible-in-software-center?forum=configmanagerapps) scripts all of this was originally based off of were just counting the names of the deployment types found to determine when that data was missing. No DT data, no DT name.  
+
+Note: Since `Get-WMIObject` only works on PowerShell 5.1, this script has to do some real annoying workarounds to accomplish the same thing in PowerShell 7, because for some reason `Get-CIMInstance` doesn't include the `__PATH` property natively. See:  
     - https://jdhitsolutions.com/blog/powershell/8541/getting-ciminstance-by-path/
 		- https://jdhitsolutions.com/blog/wmi/3105/adding-system-path-to-ciminstance-objects/
 <br />
