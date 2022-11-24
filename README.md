@@ -3,7 +3,7 @@ Script to gather local application deployment type data from remote machines to 
 
 This is sort of a companion script to https://github.com/engrit-illinois/Compare-AssignmentRevisions.  
 
-While Compare-AssignmentRevisions looks primarily at locally-cached assignment data across endpoints, Get-CMAppDepTypeData looks at locally-cached application data across endpoints. Looking at locally-cached assignment data is useful to determine if endpoints are looking for incorrect revisions of a deployment (more details on the Compare-Assignments README). Looking at locally-cached application data (or more specifically, the locally-cached data about those applications' available deployment types) is useful to determine if endpoints are missing this deployment type data, which seems to be another reason that Software Center may display only a subset of the applications deployed to it.  
+While Compare-AssignmentRevisions looks primarily at locally-cached assignment data across endpoints, Get-CMAppDepTypeData looks at locally-cached application data across endpoints. Looking at locally-cached assignment data is useful to determine if endpoints are looking for incorrect revisions of a deployment (more details on the Compare-Assignments README). Looking at locally-cached application data (or more specifically, the locally-cached data about those applications' available deployment types) is useful to determine if endpoints are missing this deployment type data, which seems to be another reason that Software Center may display only a subset of the applications deployed to it. As noted in the `Compare-AssignmentRevisions` README, this can also cause deployment reporting to be incomplete. It seems as though when the client runs into one of these problems it stops processing further deployments, causing both issues.  
 
 Gathering both types of data in a single script turned out to be more trouble than it was worth, so I've moved this application data-gathering functionality here.  
 <br />
@@ -15,12 +15,20 @@ Gathering both types of data in a single script turned out to be more trouble th
 <br />
 
 # Usage
-WIP
+1. Download `Report-AMTStatus.psm1` to the appropriate subdirectory of your PowerShell [modules directory](https://github.com/engrit-illinois/how-to-install-a-custom-powershell-module).
+2. Run it, e.g.: `Get-CMAppDepTypeData -Collection "UIUC-ENGR-All Systems" -Csv ":ENGRIT:" -Log ":ENGRIT:"`.
+3. Review the generated CSV. See the notes below for how to interpret the results.
 <br />
 <br />
 
 # Interpretation
-WIP
+The resulting CSV will have one row for every app deployement for every computer. This data comes from the specific WMI store the computer uses to cache information about its deployments. This data _should_ include a list of deployment types available for each app. But sometimes computers are missing this deployment type information, and this can cause the issues noted in the summary above.  
+
+Each row in the CSV will list some stats about the computer, the name of the deployed app, the names of the deployment types for that app, and for convenience, a count of the deployment types. If an app is missing its deployment type data, no deployment type names will be listed and the `AppDTCount` column will contain `0`.  
+
+An issue with an individual endpoint will manifest as many rows, representing multiple deployments on the same computer, where the `AppDtCount` is 0. The easiest way to identify this is to sort the data first by the `AppDTCount` column (ascending), and then by the `Computer` column. If you see the same computer listed many times with an `AppDTCount` of `0`, then that client may have issues.  
+
+A widespread issue will manifest as many rows, representing the same deployment across different computers, where the `AppDTCount` is 0. The easiest way to identify this is to sort the data first by the `AppDTCount` column (ascending), and then by the `AppName` column. If you see the same app listed many times across different computers with an `AppDTCount` of `0`, then that appor deployment may have an issue.  
 <br />
 <br />
 
@@ -34,6 +42,7 @@ This script is primarily to determine if there are some endpoints which _all_ ha
 - Delete and recreate the offending deployment
 - Increment the revision of the deployment's application's deployment type, by making a benign edit (such as to the name string) and saving it. This should trigger all (functioning) clients where this deployment type is deployed to refresh their assignment data.
 - Update the content of the deployment type of the offending application (right-click -> Update Content).
+- Prune the supersedence chain of the offending application. Long supersedence chains are known to cause issues.
 <br />
 <br />
 
