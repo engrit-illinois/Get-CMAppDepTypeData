@@ -282,13 +282,23 @@ function Get-CMAppDepTypeData {
 		log "Getting data for all computers..."
 		
 		# https://tighetec.co.uk/2022/06/01/passing-functions-to-foreach-parallel-loop/
+		$f_log = ${function:log}.ToString()
 		$f_addm = ${function:addm}.ToString()
 		$f_count = ${function:count}.ToString()
 		
 		$comps = $comps | ForEach-Object -ThrottleLimit $ThrottleLimit -Parallel {
+			$Verbosity = $using:Verbosity
+			$LogLineTimestampFormat = $using:LogLineTimestampFormat
+			$Indent = $using:Indent
+			${function:log} = $using:f_log
+			
 			$f_addm = $using:f_addm
 			$f_count = $using:f_count
+			
 			$comp = $_
+			$compName = $comp.Name
+			
+			log "[$compName] Getting data..." -L 1 -V 1 -NoLog
 			
 			if(-not (Test-Connection $comp.Name -Quiet -Count 1)) {
 				$comp.Responded = $false
@@ -303,6 +313,8 @@ function Get-CMAppDepTypeData {
 						[string]$f_addm,
 						[string]$f_count
 					)
+					${function:addm} = $using:f_addm
+					${function:count} = $using:f_count
 					
 					$err = $false
 					$errReasons = @()
@@ -349,60 +361,64 @@ function Get-CMAppDepTypeData {
 						$errReasons += @("Failed to get application data!")
 					}
 					
-					$apps | ForEach-Object {
-						${function:addm} = $using:f_addm
-						${function:count} = $using:f_count
-						$app = $_
-						
-						# For some dumb reason, Get-CIMInstance doesn't return the __PATH property like Get-WMIObject does, so reconstruct it
-						# https://jdhitsolutions.com/blog/powershell/8541/getting-ciminstance-by-path/
-						# https://jdhitsolutions.com/blog/wmi/3105/adding-system-path-to-ciminstance-objects/
-						$serverName = $app.CimSystemProperties.ServerName
-						$cimClass = $app.CimClass.ToString() -replace "/","\"
-						$modelName = $app.Id.ToString()
-						$machineTarget = $app.IsMachineTarget.ToString().ToLower()
-						$revision = $app.Revision.ToString()
-						$path = "\\$($serverName)\$($cimClass).Id=`"$($modelName)`",IsMachineTarget=$($machineTarget),Revision=`"$($revision)`""
-						$app = addm "Path" $path $app
-						
-						# Get AppDTs for each app
-						try {
-							$appDTs = [wmi]$path | Select -ExpandProperty "AppDTs"
+					if($apps) {
+						$apps | ForEach-Object {
+							$app = $_
 							
-							$appDTCount = count $appDTs
-							$app = addm "AppDTCount" $appDTCount $app
+							# For some dumb reason, Get-CIMInstance doesn't return the __PATH property like Get-WMIObject does, so reconstruct it
+							# https://jdhitsolutions.com/blog/powershell/8541/getting-ciminstance-by-path/
+							# https://jdhitsolutions.com/blog/wmi/3105/adding-system-path-to-ciminstance-objects/
+							$serverName = $app.CimSystemProperties.ServerName
+							$cimClass = $app.CimClass.ToString() -replace "/","\"
+							$modelName = $app.Id.ToString()
+							$machineTarget = $app.IsMachineTarget.ToString().ToLower()
+							$revision = $app.Revision.ToString()
+							$path = "\\$($serverName)\$($cimClass).Id=`"$($modelName)`",IsMachineTarget=$($machineTarget),Revision=`"$($revision)`""
+							$app = addm "Path" $path $app
 							
-							if($appDTCount -gt 0) {
-								$appDTNames = $appDTs | Select -ExpandProperty "Name"
-								$appDTNamesString = $appDTNames -join "`",`""
-								$appDTNamesString = "`"$($appDTNamesString)`""
-								$app = addm "AppDTNames" $appDTNamesString $app
+							# Get AppDTs for each app
+							try {
+								$appDTs = [wmi]$path | Select -ExpandProperty "AppDTs"
+								
+								$appDTCount = count $appDTs
+								$app = addm "AppDTCount" $appDTCount $app
+								
+								if($appDTCount -gt 0) {
+									$appDTNames = $appDTs | Select -ExpandProperty "Name"
+									$appDTNamesString = $appDTNames -join "`",`""
+									$appDTNamesString = "`"$($appDTNamesString)`""
+									$app = addm "AppDTNames" $appDTNamesString $app
+								}
 							}
+							catch {
+								$err = $true
+								$errReasons += @("Failed to get application deployment type data!")
+							}
+							
+							# Add misc. info to each app
+							$app = addm "Computer" $serverName $app
+							$app = addm "Responded" $Responded $app
+							$app = addm "Error" $err $app
+							$app = addm "ErrorReasons" $errReasons -join " " $app
+							$app = addm "MecmClientVer" $mecmClientVer $app
+							$app = addm "PsVer" $psVer $app
+							$app = addm "OsVer" $osVer $app
+							$app = addm "Make" $make $app
+							$app = addm "Model" $model $app
+							
+							$app
 						}
-						catch {
-							$err = $true
-							$errReasons += @("Failed to get application deployment type data!")
-						}
-						
-						# Add misc. info to each app
-						$app = addm "Computer" $serverName $app
-						$app = addm "Responded" $Responded $app
-						$app = addm "Error" $err $app
-						$app = addm "ErrorReasons" $errReasons -join " " $app
-						$app = addm "MecmClientVer" $mecmClientVer $app
-						$app = addm "PsVer" $psVer $app
-						$app = addm "OsVer" $osVer $app
-						$app = addm "Make" $make $app
-						$app = addm "Model" $model $app
-						
-						$app
+					}
+					else {
+						$err = $true
+						$errReasons += @("Application data was empty!")
 					}
 				}
 				
 				$comp.Apps = Invoke-Command -ComputerName $comp.Name -ArgumentList $CimTimeoutSec,$comp.Responded,$f_addm,$f_count -ScriptBlock $scriptBlock
 			}
 			
-			#log "[$compName] Done getting data." -l 1
+			log "[$compName] Done getting data." -L 1 -V 1 -NoLog
 			
 			$comp
 		}
