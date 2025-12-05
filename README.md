@@ -92,6 +92,11 @@ Required string, when `-Computer` is not specified.
 A string representing the name of a MECM collection.  
 Only computer names which are found as members of the given collection will be considered and acted upon.  
 
+### -DisablePsVersionCheck
+Optional switch.  
+When specified the module will attempt to run regardless of the current version of PowerShell.  
+Normally, the module refuses to run if the major current version of PowerShell is less than 7.  
+
 ### -Csv \<string\>
 Optional string.  
 The full path of a CSV file to output resulting data to.  

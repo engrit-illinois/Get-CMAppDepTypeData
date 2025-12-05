@@ -12,6 +12,8 @@ function Get-CMAppDepTypeData {
 		[Parameter(Position=0,Mandatory=$true,ParameterSetName="Collection")]
 		[string]$Collection,
 		
+		[switch]$DisablePsVersionCheck,
+		
 		# ":ENGRIT:" will be replaced with "c:\engrit\logs\$($MODULE_NAME)_:TS:.csv"
 		# ":TS:" will be replaced with start timestamp
 		[string]$Csv,
@@ -164,6 +166,28 @@ function Get-CMAppDepTypeData {
 			# We can't simply do $array.count, because if it's null, that would throw an error due to trying to access a method on a null object
 		}
 		$count
+	}
+	
+	function Validate-SupportedPowershellVersion {
+		if(-not (Test-SupportedPowershellVersion)) {
+			Throw "Unsupported PowerShell version!"
+		}
+	}
+
+	function Test-SupportedPowershellVersion {
+		if($DisablePsVersionCheck) {
+			log "-DisablePsVersionCheck was specified. Skipping PowerShell version check."
+			return $true
+		}
+		
+		log "This custom module only supports PowerShell v7+. Checking PowerShell version..."
+		
+		$ver = $Host.Version
+		log "PowerShell version is `"$($ver.Major).$($ver.Minor)`"." -L 1
+		if($ver.Major -ge 7) {
+			return $true
+		}
+		return $false
 	}
 	
 	function Get-RunTime($startTime) {
@@ -451,6 +475,8 @@ function Get-CMAppDepTypeData {
 	}
 	
 	function Do-Stuff {
+		Validate-SupportedPowershellVersion
+		
 		$startTime = Get-Date
 		
 		$compNames = Get-CompNames
