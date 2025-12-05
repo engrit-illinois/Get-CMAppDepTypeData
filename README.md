@@ -155,7 +155,7 @@ Default is `[HH:mm:ss:ffff]⎵`.
 ### -Verbosity \<int\>
 Optional integer.  
 The level of verbosity to include in output logged to the console and logfile.  
-Currently not significantly implemented.  
+Levels `0` through `3` are currently implemented.  
 Default is `0`.  
 <br />
 <br />

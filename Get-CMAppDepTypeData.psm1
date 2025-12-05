@@ -195,18 +195,66 @@ function Get-CMAppDepTypeData {
 	}
 	
 	function Prep-MECM {
-		log "Preparing connection to MECM..." -l 1
-		$initParams = @{}
-		if((Get-Module ConfigurationManager) -eq $null) {
-			# The ConfigurationManager Powershell module switched filepaths at some point around CB 18##
-			# So you may need to modify this to match your local environment
-			Import-Module $CMPSModulePath @initParams -Scope Global
+		log "Preparing connection to MECM..."
+		
+		# Import the ConfigurationManager.psd1 module
+		log "Checking if the ConfigurationManager PowerShell module is imported..." -L 1
+		
+		$success = $true
+		if($null -eq (Get-Module "ConfigurationManager")) {
+			log "Module was not found. Importing it..." -L 2
+			try {
+				Import-Module $CMPSModulePath -Scope "Global" -ErrorAction "Stop"
+			}
+			catch {
+				log "Failed to import module!" -E -L 3
+				$success = $false
+			}
+			
+			if($success) {
+				log "Module successfully imported." -L 3
+			}
 		}
-		if((Get-PSDrive -Name $SiteCode -PSProvider CMSite -ErrorAction SilentlyContinue) -eq $null) {
-			New-PSDrive -Name $SiteCode -PSProvider CMSite -Root $Provider @initParams
+		else {
+			log "Module already imported." -L 2
 		}
-		Set-Location "$($SiteCode):\" @initParams
-		log "Done prepping connection to MECM." -l 1 -v 2
+		
+		if($success) {
+			# Connect to the site's drive if it is not already present
+			# Normally, the necessary PSDrive is automaticall created during the ConfigurationManager module's Import-Module process.
+			# This is just a fallback in case the PSDrive is closed or fails to connect.
+			log "Checking if the $($SiteCode): PSDrive was successfully created when importing $CM_MODULE_NAME PowerShell module..." -L 1
+			
+			$drive = Get-PSDrive -Name $SiteCode -PSProvider "CMSite" -ErrorAction "SilentlyContinue"
+			if($null -eq $drive) {
+				try {
+					log "PSDrive was not found. Creating it..." -L 2
+					$drive = New-PSDrive -Name $SiteCode -PSProvider "CMSite" -Root $Provider -Scope "Global" -ErrorAction "Stop"
+				}
+				catch {
+					log "Failed to create PSDrive!" -E -L 3
+					$success = $false
+				}
+				
+				if($success) {
+					log "PSDrive successfully created." -L 3
+				}
+			}
+			else {
+				log "PSDrive already exists." -L 2
+			}
+		}
+		
+		if($success) {
+			# Set the current location to be the site code.
+			log "Setting present working directory to PSDrive..." -L 1
+			Set-Location "$($SiteCode):\"
+			
+			log "Done prepping connection to MECM."
+		}
+		else {
+			log "MECM connection prep did not succeed!" -E
+		}
 	}
 	
 	function Get-CompNameList($compNames) {
@@ -305,6 +353,7 @@ function Get-CMAppDepTypeData {
 	function Get-Data($comps) {
 		log "Getting data for all computers..."
 		
+		# Save these functions to strings so they can be reused/re-created within the scope of the ForEach-Object -Parallel scriptblock:
 		# https://tighetec.co.uk/2022/06/01/passing-functions-to-foreach-parallel-loop/
 		$f_log = ${function:log}.ToString()
 		$f_addm = ${function:addm}.ToString()
@@ -316,6 +365,8 @@ function Get-CMAppDepTypeData {
 			$Indent = $using:Indent
 			${function:log} = $using:f_log
 			
+			# Save these functions to strings so they can be sent to and reused/re-created within the scope of the Invoke-COmmand scriptblock:
+			$f_log = $using:f_log
 			$f_addm = $using:f_addm
 			$f_count = $using:f_count
 			
@@ -326,23 +377,34 @@ function Get-CMAppDepTypeData {
 			
 			if(-not (Test-Connection $comp.Name -Quiet -Count 1)) {
 				$comp.Responded = $false
+				log "[$compName] Did not respond to ping!" -L 2 -V 2 -NoLog
 			}
 			else {
 				$comp.Responded = $true
+				log "[$compName] Responded to ping." -L 2 -V 2 -NoLog
 				
 				$scriptBlock = {
 					param(
 						[int]$CimTimeoutSec,
 						[bool]$Responded,
+						[int]$Verbosity,
+						[string]$LogLineTimestampFormat,
+						[string]$Indent,
+						[string]$f_log,
 						[string]$f_addm,
 						[string]$f_count
 					)
-					${function:addm} = $using:f_addm
-					${function:count} = $using:f_count
+					
+					${function:log} = $f_log
+					${function:addm} = $f_addm
+					${function:count} = $f_count
 					
 					$err = $false
 					$errReasons = @()
 					
+					$compName = $env:ComputerName
+					
+					log "[$compName] Getting MECM client version..." -L 3 -V 2 -NoLog
 					try {
 						$mecmClientVer = Get-CIMInstance -Namespace "root\ccm" -Class "SMS_Client" -ErrorAction "Stop" -OperationTimeoutSec $CimTimeoutSec | Select -ExpandProperty "ClientVersion"
 					}
@@ -351,6 +413,7 @@ function Get-CMAppDepTypeData {
 						$errReasons += @("Failed to get MECM client version!")
 					}
 					
+					log "[$compName] Getting PowerShell version..." -L 3 -V 2 -NoLog
 					try {
 						$psVer = $PSVersionTable.PSVersion.ToString()
 					}
@@ -359,6 +422,7 @@ function Get-CMAppDepTypeData {
 						$errReasons += @("Failed to get PowerShell version!")
 					}
 					
+					log "[$compName] Getting Win32_OperatingSystem WMI info..." -L 3 -V 2 -NoLog
 					try {
 						$osVer = Get-CIMInstance -Class "Win32_OperatingSystem" -ErrorAction "Stop" -OperationTimeoutSec $CimTimeoutSec | Select -ExpandProperty "Version"
 					}
@@ -367,6 +431,7 @@ function Get-CMAppDepTypeData {
 						$errReasons += @("Failed to get OS version!")
 					}
 					
+					log "[$compName] Getting Win32_ComputerSystem WMI info..." -L 3 -V 2 -NoLog
 					try {
 						$makeModel = Get-CIMInstance -Class "Win32_ComputerSystem" -ErrorAction "Stop" -OperationTimeoutSec $CimTimeoutSec
 						$make = $makeModel | Select -ExpandProperty "Manufacturer"
@@ -377,6 +442,7 @@ function Get-CMAppDepTypeData {
 						$errReasons += @("Failed to get make/model!")
 					}
 					
+					log "[$compName] Getting CCM_Application WMI info..." -L 3 -V 2 -NoLog
 					try {
 						$apps = Get-CIMInstance -Namespace "root\ccm\clientsdk" -Class "CCM_Application" -ErrorAction "Stop" -OperationTimeoutSec $CimTimeoutSec | Select * -ExcludeProperty "Icon"
 					}
@@ -385,9 +451,11 @@ function Get-CMAppDepTypeData {
 						$errReasons += @("Failed to get application data!")
 					}
 					
+					log "[$compName] Parsing app info..." -L 3 -V 2 -NoLog
 					if($apps) {
-						$apps | ForEach-Object {
+						$apps | Sort Name | ForEach-Object {
 							$app = $_
+							log "[$compName] Parsing app info for app `"$($app.Name)`"..." -L 4 -V 3 -NoLog
 							
 							# For some dumb reason, Get-CIMInstance doesn't return the __PATH property like Get-WMIObject does, so reconstruct it
 							# https://jdhitsolutions.com/blog/powershell/8541/getting-ciminstance-by-path/
@@ -436,10 +504,18 @@ function Get-CMAppDepTypeData {
 					else {
 						$err = $true
 						$errReasons += @("Application data was empty!")
+						log "[$compName] $errReasons" -L 4 -V 3 -NoLog
 					}
+					log "[$compName] Done parsing app info..." -L 3 -V 3 -NoLog
 				}
 				
-				$comp.Apps = Invoke-Command -ComputerName $comp.Name -ArgumentList $CimTimeoutSec,$comp.Responded,$f_addm,$f_count -ScriptBlock $scriptBlock
+				log "[$compName] Invoking commands..." -L 2 -V 2 -NoLog
+				$comp.Apps = Invoke-Command -ComputerName $comp.Name -ArgumentList $CimTimeoutSec,$comp.Responded,$Verbosity,$LogLineTimestampFormat,$Indent,$f_log,$f_addm,$f_count -ScriptBlock $scriptBlock -InformationVariable "logs"
+				log "[$compName] Logs:" -L 2 -V 3 -NoLog
+				$logs | ForEach-Object {
+					log $_ -V 3 -NoLog -NoTS
+				}
+				log "[$compName] End of logs:" -L 2 -V 3 -NoLog
 			}
 			
 			log "[$compName] Done getting data." -L 1 -V 1 -NoLog
