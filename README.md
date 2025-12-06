@@ -116,6 +116,11 @@ Optional integer.
 The maximum number of endpoints to poll simultaneously.  
 Default is `50`.  
 
+### -CimTimeoutSec \<int\>
+Optional integer.  
+The maximum number of seconds to wait for CIM responses before timing out and moving on.  
+Default is `20`.  
+
 ### -SiteCode \<string\>
 Optional string, representing the Site Code ID for your SCCM site.  
 Default value is `MP0`, because that's the author's site.  
@@ -160,7 +165,7 @@ This allows the log lines to be sorted alphanumerically in order to group all en
 ### -Verbosity \<int\>
 Optional integer.  
 The level of verbosity to include in output logged to the console and logfile.  
-Levels `0` through `3` are currently implemented.  
+Levels `0` through `2` are currently implemented.  
 Default is `0`.  
 <br />
 <br />

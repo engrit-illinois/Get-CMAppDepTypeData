@@ -25,7 +25,7 @@ function Get-CMAppDepTypeData {
 		
 		[int]$ThrottleLimit = 50,
 		
-		[int]$CimTimeoutSec = 60,
+		[int]$CimTimeoutSec = 20,
 		
 		[string]$SiteCode="MP0",
 		[string]$Provider="sccmcas.ad.uillinois.edu",
@@ -64,8 +64,7 @@ function Get-CMAppDepTypeData {
 			New-Item -ItemType "File" -Force -Path $Log | Out-Null
 		}
 		$ASYNC_WRITER = [System.IO.TextWriter]::Synchronized([System.IO.File]::AppendText($Log))
-		log "Logging to `"$Log`"."
-	
+		
 		function log {
 			param (
 				[Parameter(Position=0)]
@@ -112,7 +111,9 @@ function Get-CMAppDepTypeData {
 			
 			if($ComputerName) {
 				if($LogLinePrependComputerName) {
-					$Msg = "[$ComputerName] $Msg"
+					$ComputerNameStamp = "[$ComputerName]"
+					$ComputerNameStampPadded = $ComputerNameStamp.PadRight(17," ")
+					$Msg = "$ComputerNameStampPadded $Msg"
 				}
 			}
 
@@ -342,16 +343,7 @@ function Get-CMAppDepTypeData {
 			foreach($compName in $compNames) {
 				$hash = @{
 					"Name" = $compName
-					"Responded" = $null
-					"Error" = $null
-					"ErrorReasons" = @()
-					"MecmClientVer" = $null
-					"PsVer" = $null
-					"OsVer" = $null
-					"Make" = $null
-					"Model" = $null
 					"Apps" = @()
-					"Skip" = $false
 				}
 				$comp = New-Object PSObject -Property $hash
 				$comps += @($comp)
@@ -371,6 +363,7 @@ function Get-CMAppDepTypeData {
 			$f_count = ${function:count}.ToString()
 			
 			$comps = $comps | ForEach-Object -ThrottleLimit $ThrottleLimit -Parallel {
+				$CimTimeoutSec = $using:CimTimeoutSec
 				$ASYNC_WRITER = $using:ASYNC_WRITER
 				$Log = $using:Log
 				$Verbosity = $using:Verbosity
@@ -386,21 +379,23 @@ function Get-CMAppDepTypeData {
 				
 				$comp = $_
 				$compName = $comp.Name
+				$err = $false
+				$errReasons = @()
 				
 				log "Getting data..." $compName -L 1 -V 1
 				
 				if(-not (Test-Connection $comp.Name -Quiet -Count 1)) {
-					$comp.Responded = $false
-					log "Did not respond to ping!" $compName -L 2 -V 2
+					$err = $true
+					$errReason = "Did not respond to ping!"
+					$errReasons += @($errReason)
+					log $errReason $compName -L 2 -V 2
 				}
 				else {
-					$comp.Responded = $true
 					log "Responded to ping." $compName -L 2 -V 2
 					
 					$scriptBlock = {
 						param(
 							[int]$CimTimeoutSec,
-							[bool]$Responded,
 							$ASYNC_WRITER,
 							[string]$Log,
 							[int]$Verbosity,
@@ -424,28 +419,37 @@ function Get-CMAppDepTypeData {
 						log "Getting MECM client version..." $compName -L 3 -V 2 -NoLog
 						try {
 							$mecmClientVer = Get-CIMInstance -Namespace "root\ccm" -Class "SMS_Client" -ErrorAction "Stop" -OperationTimeoutSec $CimTimeoutSec | Select -ExpandProperty "ClientVersion"
+							log $mecmClientVer $compName -L 4 -V 2 -NoLog
 						}
 						catch {
 							$err = $true
-							$errReasons += @("Failed to get MECM client version!")
+							$errReason = "Failed to get MECM client version!"
+							$errReasons += @($errReason)
+							log $errReason $compName -L 4 -V 2 -NoLog
 						}
 						
 						log "Getting PowerShell version..." $compName -L 3 -V 2 -NoLog
 						try {
 							$psVer = $PSVersionTable.PSVersion.ToString()
+							log $psVer $compName -L 4 -V 2 -NoLog
 						}
 						catch {
 							$err = $true
-							$errReasons += @("Failed to get PowerShell version!")
+							$errReason = "Failed to get PowerShell version!"
+							$errReasons += @($errReason)
+							log $errReason $compName -L 4 -V 2 -NoLog
 						}
 						
 						log "Getting Win32_OperatingSystem WMI info..." $compName -L 3 -V 2 -NoLog
 						try {
 							$osVer = Get-CIMInstance -Class "Win32_OperatingSystem" -ErrorAction "Stop" -OperationTimeoutSec $CimTimeoutSec | Select -ExpandProperty "Version"
+							log $osVer $compName -L 4 -V 2 -NoLog
 						}
 						catch {
 							$err = $true
-							$errReasons += @("Failed to get OS version!")
+							$errReason = "Failed to get OS version!"
+							$errReasons += @($errReason)
+							log $errReason $compName -L 4 -V 2 -NoLog
 						}
 						
 						log "Getting Win32_ComputerSystem WMI info..." $compName -L 3 -V 2 -NoLog
@@ -453,26 +457,34 @@ function Get-CMAppDepTypeData {
 							$makeModel = Get-CIMInstance -Class "Win32_ComputerSystem" -ErrorAction "Stop" -OperationTimeoutSec $CimTimeoutSec
 							$make = $makeModel | Select -ExpandProperty "Manufacturer"
 							$model = $makeModel | Select -ExpandProperty "Model"
+							log $make $compName -L 4 -V 2 -NoLog
+							log $model $compName -L 4 -V 2 -NoLog
 						}
 						catch {
 							$err = $true
-							$errReasons += @("Failed to get make/model!")
+							$errReason = "Failed to get make/model!"
+							$errReasons += @($errReason)
+							log $errReason $compName -L 4 -V 2 -NoLog
 						}
 						
 						log "Getting CCM_Application WMI info..." $compName -L 3 -V 2 -NoLog
 						try {
 							$apps = Get-CIMInstance -Namespace "root\ccm\clientsdk" -Class "CCM_Application" -ErrorAction "Stop" -OperationTimeoutSec $CimTimeoutSec | Select * -ExcludeProperty "Icon"
+							$appsCount = count $apps
+							log "Found $appsCount apps." $compName -L 4 -V 2 -NoLog
 						}
 						catch {
 							$err = $true
-							$errReasons += @("Failed to get application data!")
+							$errReason = "Failed to get application data!"
+							$errReasons += @($errReason)
+							log $errReason $compName -L 4 -V 2 -NoLog
 						}
 						
 						log "Parsing app info..." $compName -L 3 -V 2 -NoLog
 						if($apps) {
 							$apps | Sort Name | ForEach-Object {
 								$app = $_
-								log "Parsing app info for app `"$($app.Name)`"..." $compName -L 4 -V 3 -NoLog
+								log "Parsing app info for app `"$($app.Name)`"..." $compName -L 4 -V 2 -NoLog
 								
 								# For some dumb reason, Get-CIMInstance doesn't return the __PATH property like Get-WMIObject does, so reconstruct it
 								# https://jdhitsolutions.com/blog/powershell/8541/getting-ciminstance-by-path/
@@ -501,12 +513,13 @@ function Get-CMAppDepTypeData {
 								}
 								catch {
 									$err = $true
-									$errReasons += @("Failed to get application deployment type data!")
+									$errReason = "Failed to get application deployment type data!"
+									$errReasons += @($errReason)
+									log $errReason $compName -L 5 -V 2 -NoLog
 								}
 								
 								# Add misc. info to each app
 								$app = addm "Computer" $serverName $app
-								$app = addm "Responded" $Responded $app
 								$app = addm "Error" $err $app
 								$app = addm "ErrorReasons" $errReasons -join " " $app
 								$app = addm "MecmClientVer" $mecmClientVer $app
@@ -520,21 +533,41 @@ function Get-CMAppDepTypeData {
 						}
 						else {
 							$err = $true
-							$errReasons += @("Application data was empty!")
-							$errReasonsString = $errReasons -join ";"
-							log $errReasonsString $compName -L 4 -V 3 -NoLog
+							$errReason = "Application data was empty!"
+							$errReasons += @($errReason)
+							log $errReason $compName -L 4 -V 2 -NoLog
 						}
-						log "Done parsing app info..." $compName -L 3 -V 3 -NoLog
+						log "Done parsing app info..." $compName -L 3 -V 2 -NoLog
 					}
 					
 					log "Invoking commands..." $compName -L 2 -V 2
-					$comp.Apps = Invoke-Command -ComputerName $comp.Name -ArgumentList $CimTimeoutSec,$comp.Responded,$ASYNC_WRITER,$Log,$Verbosity,$Indent,$LogLineTimestampFormat,$LogLinePrependComputerName,$f_log,$f_addm,$f_count -ScriptBlock $scriptBlock -InformationVariable "logs"
-					log "Logs:" $compName -L 2 -V 3
-					$logs | ForEach-Object {
-						log $_ -V 3 -NoTS
+					try {
+						$comp.Apps = Invoke-Command -ComputerName $comp.Name -ArgumentList $CimTimeoutSec,$ASYNC_WRITER,$Log,$Verbosity,$Indent,$LogLineTimestampFormat,$LogLinePrependComputerName,$f_log,$f_addm,$f_count -ScriptBlock $scriptBlock -InformationVariable "logs" -ErrorAction "Stop"
 					}
-					log "End of logs:" $compName -L 2 -V 3
+					catch {
+						$err = $true
+						$errReason = "Invoke-Command failed: `"$($_.Exception.Message)"
+						$errReasons += @($errReason)
+						log $errReason $compName -L 2 -V 2
+					}
+					
+					if($logs) {
+						log "Logs:" $compName -L 2 -V 2
+						$logs | ForEach-Object {
+							log $_ -V 2 -NoTS
+						}
+						log "End of logs:" $compName -L 2 -V 2
+					}
 				}
+				
+				if($err) {
+					$comp.Apps = [PSCustomObject]@{
+						Computer = $compName
+						Error = $err
+						ErrorReasons = $errReasons -join " "
+					}
+				}
+				
 				log "Done getting data." $compName -L 1 -V 1
 				
 				$comp
@@ -569,9 +602,10 @@ function Get-CMAppDepTypeData {
 	}
 	
 	process {
-		Validate-SupportedPowershellVersion
-		
 		$startTime = Get-Date
+		log "Logging to `"$Log`"."
+		
+		Validate-SupportedPowershellVersion
 		
 		$compNames = Get-CompNames
 		if($compNames) {
