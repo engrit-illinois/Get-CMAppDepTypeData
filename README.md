@@ -152,6 +152,11 @@ Optional string.
 The format of the timestamp which prepends each log line.  
 Default is `[HH:mm:ss:ffff]⎵`.  
 
+### -LogLinePrependComputerName
+Optional switch.  
+When specified, log lines specific to individual computers have `[<computername>] ` prepended.  
+This allows the log lines to be sorted alphanumerically in order to group all entries by computer.  
+
 ### -Verbosity \<int\>
 Optional integer.  
 The level of verbosity to include in output logged to the console and logfile.  
